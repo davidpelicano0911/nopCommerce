@@ -13,6 +13,15 @@ services:
             SA_PASSWORD: "nopCommerce_db_password"
             ACCEPT_EULA: "Y"
             MSSQL_PID: "Express"
+    jaeger:
+        image: jaegertracing/all-in-one
+        container_name: jaeger_container
+        environment:
+        - COLLECTOR_OTLP_ENABLED=true
+        ports:
+        - "16686:16686" # Interface do Browser
+        - "4317:4317"   # Porta de dados (gRPC)
+        - "4318:4318"   # Porta de dados (HTTP)
 
 volumes:
   nopcommerce_data:            

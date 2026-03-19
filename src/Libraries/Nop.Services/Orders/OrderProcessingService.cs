@@ -32,6 +32,9 @@ using Nop.Services.Stores;
 using Nop.Services.Tax;
 using Nop.Services.Vendors;
 
+using Nop.Services.Observability;
+using System.Diagnostics; 
+
 namespace Nop.Services.Orders;
 
 /// <summary>
@@ -1566,6 +1569,13 @@ public partial class OrderProcessingService : IOrderProcessingService
     /// </returns>
     public virtual async Task<PlaceOrderResult> PlaceOrderAsync(ProcessPaymentRequest processPaymentRequest)
     {
+
+        var stopwatch = Stopwatch.StartNew();
+
+        using var activity = NopTelemetry.ActivitySource.StartActivity("checkout.place_order");
+        activity?.SetTag("order.guid", processPaymentRequest.OrderGuid.ToString());
+        activity?.SetTag("order.store_id", processPaymentRequest.StoreId);
+
         ArgumentNullException.ThrowIfNull(processPaymentRequest);
 
         if (processPaymentRequest.OrderGuid == Guid.Empty)
@@ -1580,18 +1590,45 @@ public partial class OrderProcessingService : IOrderProcessingService
 
             try
             {
-                var processPaymentResult =
-                    await GetProcessPaymentResultAsync(processPaymentRequest, placeOrderContainer)
-                    ?? throw new NopException("processPaymentResult is not available");
+                ProcessPaymentResult processPaymentResult;
+
+                using (var paymentActivity = NopTelemetry.ActivitySource.StartActivity("checkout.process_payment"))
+                {
+                    paymentActivity?.SetTag("payment.method", processPaymentRequest.PaymentMethodSystemName);
+
+                    processPaymentResult =
+                        await GetProcessPaymentResultAsync(processPaymentRequest, placeOrderContainer)
+                        ?? throw new NopException("processPaymentResult is not available");
+
+                    paymentActivity?.SetTag("payment.success", processPaymentResult.Success);
+
+                    if (!processPaymentResult.Success)
+                        paymentActivity?.SetStatus(ActivityStatusCode.Error);
+                }
 
                 if (processPaymentResult.Success)
                 {
-                    var order = await SaveOrderDetailsAsync(processPaymentRequest, processPaymentResult,
-                        placeOrderContainer);
+                    Order order;
+
+                    using (var saveActivity = NopTelemetry.ActivitySource.StartActivity("checkout.save_order"))
+                    {
+                        order = await SaveOrderDetailsAsync(processPaymentRequest, processPaymentResult,
+                            placeOrderContainer);
+
+                        saveActivity?.SetTag("order.id", order.Id);
+                        saveActivity?.SetTag("order.total", order.OrderTotal);
+                    }
+
+                    result.PlacedOrder = order;
                     result.PlacedOrder = order;
 
                     //move shopping cart items to order items
-                    await MoveShoppingCartItemsToOrderItemsAsync(placeOrderContainer, order);
+                    using (var inventoryActivity = NopTelemetry.ActivitySource.StartActivity("checkout.adjust_inventory"))
+                    {
+                        inventoryActivity?.SetTag("order.item_count", placeOrderContainer.Cart.Count);
+
+                        await MoveShoppingCartItemsToOrderItemsAsync(placeOrderContainer, order);
+                    }
 
                     //discount usage history
                     await SaveDiscountUsageHistoryAsync(placeOrderContainer, order);
@@ -1614,7 +1651,10 @@ public partial class OrderProcessingService : IOrderProcessingService
                             order.Id), order);
 
                     //raise event       
-                    await _eventPublisher.PublishAsync(new OrderPlacedEvent(order));
+                    using (var eventActivity = NopTelemetry.ActivitySource.StartActivity("checkout.publish_order_event"))
+                    {
+                        await _eventPublisher.PublishAsync(new OrderPlacedEvent(order));
+                    }
 
                     //check order status
                     await CheckOrderStatusAsync(order);
@@ -1687,6 +1727,12 @@ public partial class OrderProcessingService : IOrderProcessingService
         {
             mutex.ReleaseMutex();
         }
+
+        stopwatch.Stop();
+        NopTelemetry.CheckoutDuration.Record(stopwatch.Elapsed.TotalMilliseconds,new KeyValuePair<string, object?>("order.success", result.Success));
+    
+        if (!result.Success)
+            activity?.SetStatus(ActivityStatusCode.Error, string.Join("; ", result.Errors));
 
         return result;
     }
