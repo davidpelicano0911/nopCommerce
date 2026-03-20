@@ -17,6 +17,7 @@ using Nop.Services.Security;
 using Nop.Services.Shipping.Date;
 using Nop.Services.Stores;
 using Nop.Services.Vendors;
+using Nop.Services.Observability;
 
 namespace Nop.Services.Catalog;
 
@@ -1699,6 +1700,13 @@ public partial class ProductService : IProductService
     /// <returns>A task that represents the asynchronous operation</returns>
     public virtual async Task AdjustInventoryAsync(Product product, int quantityToChange, string attributesXml = "", string message = "")
     {
+
+        var activity = NopTelemetry.ActivitySource.StartActivity("product.adjust_inventory");
+
+        activity?.SetTag("product.id", product.Id);
+        activity?.SetTag("quantityToChange", quantityToChange);
+        
+        
         ArgumentNullException.ThrowIfNull(product);
 
         if (quantityToChange == 0)

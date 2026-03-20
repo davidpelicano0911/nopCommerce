@@ -33,6 +33,7 @@ public class ObservabilityStartup : INopStartup
                     .AddMeter(NopTelemetry.ServiceName)     // picks up our Meter
                     .AddAspNetCoreInstrumentation()
                     .AddConsoleExporter()                   
+                    .AddPrometheusExporter()
                     .AddOtlpExporter(opt => {
                         opt.Endpoint = new Uri("http://localhost:4317");
                     });
@@ -41,6 +42,6 @@ public class ObservabilityStartup : INopStartup
 
     public void Configure(IApplicationBuilder application)
     {
-        // nothing needed here — OTel hooks into the DI pipeline
+        application.UseOpenTelemetryPrometheusScrapingEndpoint();
     }
 }

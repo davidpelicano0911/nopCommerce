@@ -3,6 +3,7 @@ using Nop.Core.Domain.Orders;
 using Nop.Core.Domain.Payments;
 using Nop.Services.Catalog;
 using Nop.Services.Customers;
+using Nop.Services.Observability;
 
 namespace Nop.Services.Payments;
 
@@ -50,6 +51,12 @@ public partial class PaymentService : IPaymentService
     /// </returns>
     public virtual async Task<ProcessPaymentResult> ProcessPaymentAsync(ProcessPaymentRequest processPaymentRequest)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("payment.process");
+
+        activity?.SetTag("customer.id", processPaymentRequest.CustomerId);
+        activity?.SetTag("order.total", processPaymentRequest.OrderTotal);
+        activity?.SetTag("payment.method.system.name", processPaymentRequest.PaymentMethodSystemName);
+
         if (processPaymentRequest.OrderTotal == decimal.Zero)
         {
             var result = new ProcessPaymentResult

@@ -17,28 +17,21 @@ public static class NopTelemetry
     // Metrics
     public static readonly Meter Meter = new(ServiceName);
 
-    // ── Custom Metric 1: Checkout Pipeline Duration ──
-    // Histogram that measures the duration of PlaceOrderAsync in milliseconds.
-    // Rationale: if the median is rising, the operator knows that the checkout
-    // pipeline is degrading BEFORE users see visible errors
-    // (30s timeouts). The p95 of this metric is the first warning sign.
+    // Custom Metric 1: Checkout Pipeline Duration 
     public static readonly Histogram<double> CheckoutDuration =
         Meter.CreateHistogram<double>(
             name: "nopcommerce.checkout.duration_ms",
             unit: "ms",
             description: "Time taken to execute the full PlaceOrderAsync pipeline");
 
-    // ── Custom Metric 2: Inventory Adjustment Failures ──
-    // Counter that records how many times AdjustInventory failed during checkout.
-    // Rationale: if stock went negative or the adjustment threw an exception,
-    // the operator knows there is a risk of overselling. A rising counter
-    // indicates a data problem in the catalog that should be investigated
-    // before it turns into customer complaints.
-    public static readonly Counter<long> InventoryAdjustmentFailures =
+
+    // Custom Metric 2: Checkout Attempts (Successes & Failures)
+    public static readonly Counter<long> CheckoutCompleted =
         Meter.CreateCounter<long>(
-            name: "nopcommerce.inventory.adjustment_failures",
-            unit: "{failure}",
-            description: "Number of inventory adjustments that failed during order placement");
+            name: "nopcommerce.checkout.completed",
+            unit: "{order}",
+            description: "Number of checkout attempts completed, tagged by success or failure");
+
 }
 
 

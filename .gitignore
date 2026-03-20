@@ -206,4 +206,4 @@ src/Presentation/Nop.Web/wwwroot/sitemaps/*
 src/packages/*
 src/Tests/Nop.Tests/Connections.resx
 
-docs/apontamentos.txt
+docs/apontamentos/

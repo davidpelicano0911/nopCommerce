@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Newtonsoft.Json;
 using Nop.Core;
 using Nop.Core.Caching;
@@ -1581,8 +1581,12 @@ public partial class OrderProcessingService : IOrderProcessingService
         if (processPaymentRequest.OrderGuid == Guid.Empty)
             throw new Exception("Order GUID is not generated");
 
-        //prepare order details
-        var details = await PreparePlaceOrderDetailsAsync(processPaymentRequest);
+        PlaceOrderResult result = null;
+
+        try
+        {
+            //prepare order details
+            var details = await PreparePlaceOrderDetailsAsync(processPaymentRequest);
 
         async Task<PlaceOrderResult> placeOrder(PlaceOrderContainer placeOrderContainer)
         {
@@ -1689,53 +1693,88 @@ public partial class OrderProcessingService : IOrderProcessingService
             return result;
         }
 
-        if (!_orderSettings.PlaceOrderWithLock)
-            return await placeOrder(details);
-
-        PlaceOrderResult result;
-        var resource = details.Customer.Id.ToString();
-
-        //the named mutex helps to avoid creating the same order in different threads,
-        //and does not decrease performance significantly, because the code is blocked only for the specific cart.
-        //you should be very careful, mutexes cannot be used in with the await operation
-        //we can't use semaphore here, because it produces PlatformNotSupportedException exception on UNIX based systems
-        using var mutex = new Mutex(false, resource);
-
-        mutex.WaitOne();
-
-        try
-        {
-            var cacheKey = _staticCacheManager.PrepareKey(NopOrderDefaults.OrderWithLockCacheKey, resource);
-            cacheKey.CacheTime = _orderSettings.MinimumOrderPlacementInterval;
-
-            var exist = _staticCacheManager.GetAsync(cacheKey, () => false).Result;
-
-            if (exist)
+            if (!_orderSettings.PlaceOrderWithLock)
             {
-                result = new PlaceOrderResult();
-                result.Errors.Add(_localizationService.GetResourceAsync("Checkout.MinOrderPlacementInterval").Result);
+                result = await placeOrder(details);
             }
             else
             {
-                result = placeOrder(details).Result;
+                var resource = details.Customer.Id.ToString();
 
-                if (result.Success)
-                    _staticCacheManager.SetAsync(cacheKey, true).Wait();
+                //the named mutex helps to avoid creating the same order in different threads,
+                //and does not decrease performance significantly, because the code is blocked only for the specific cart.
+                //you should be very careful, mutexes cannot be used in with the await operation
+                //we can't use semaphore here, because it produces PlatformNotSupportedException exception on UNIX based systems
+                using var mutex = new Mutex(false, resource);
+
+                mutex.WaitOne();
+
+                try
+                {
+                    var cacheKey = _staticCacheManager.PrepareKey(NopOrderDefaults.OrderWithLockCacheKey, resource);
+                    cacheKey.CacheTime = _orderSettings.MinimumOrderPlacementInterval;
+
+                    var exist = _staticCacheManager.GetAsync(cacheKey, () => false).Result;
+
+                    if (exist)
+                    {
+                        result = new PlaceOrderResult();
+                        result.Errors.Add(_localizationService.GetResourceAsync("Checkout.MinOrderPlacementInterval").Result);
+                    }
+                    else
+                    {
+                        result = placeOrder(details).Result;
+
+                        if (result.Success)
+                            _staticCacheManager.SetAsync(cacheKey, true).Wait();
+                    }
+                }
+                finally
+                {
+                    mutex.ReleaseMutex();
+                }
             }
         }
-        finally
+        catch (Exception ex)
         {
-            mutex.ReleaseMutex();
+            result = new PlaceOrderResult();
+            result.AddError(ex.Message);
+            throw; 
+        }
+        finally 
+        {
+            // this block always runs, even if there is an error 
+            stopwatch.Stop();
+            
+            var isSuccess = result?.Success ?? false;
+
+            NopTelemetry.CheckoutDuration.Record(stopwatch.Elapsed.TotalMilliseconds, 
+                new KeyValuePair<string, object>("order.success", isSuccess));
+
+            NopTelemetry.CheckoutCompleted.Add(1,
+                 new KeyValuePair<string, object>("customer.id", processPaymentRequest.CustomerId),
+                 new KeyValuePair<string, object>("success", isSuccess));
+
+            if (!isSuccess)
+            {
+                var errorMsg = result != null && result.Errors.Any() 
+                    ? string.Join("; ", result.Errors) 
+                    : "Unknown error before result generation";
+
+                activity?.SetStatus(ActivityStatusCode.Error, errorMsg);
+                
+                activity?.SetTag("order.error", errorMsg);
+
+                activity?.AddEvent(new ActivityEvent("Checkout Failed", tags: new ActivityTagsCollection 
+                { 
+                    { "error.message", errorMsg },
+                    { "customer.id", processPaymentRequest.CustomerId }
+                }));
+            }
         }
 
-        stopwatch.Stop();
-        NopTelemetry.CheckoutDuration.Record(stopwatch.Elapsed.TotalMilliseconds,new KeyValuePair<string, object?>("order.success", result.Success));
-    
-        if (!result.Success)
-            activity?.SetStatus(ActivityStatusCode.Error, string.Join("; ", result.Errors));
-
         return result;
-    }
+}
 
     /// <summary>
     /// Update order totals

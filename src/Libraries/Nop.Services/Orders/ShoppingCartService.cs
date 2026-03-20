@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Routing;
@@ -23,6 +23,9 @@ using Nop.Services.Seo;
 using Nop.Services.Shipping;
 using Nop.Services.Shipping.Date;
 using Nop.Services.Stores;
+
+using Nop.Services.Observability;
+using System.Diagnostics;
 
 namespace Nop.Services.Orders;
 
@@ -750,6 +753,8 @@ public partial class ShoppingCartService : IShoppingCartService
     public virtual async Task<IList<ShoppingCartItem>> GetShoppingCartAsync(Customer customer, ShoppingCartType? shoppingCartType = null,
         int storeId = 0, int? productId = null, DateTime? createdFromUtc = null, DateTime? createdToUtc = null, int? customWishlistId = null)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("basket.get_cart");
+
         ArgumentNullException.ThrowIfNull(customer);
 
         var items = _sciRepository.Table.Where(sci => sci.CustomerId == customer.Id);
@@ -1549,11 +1554,25 @@ public partial class ShoppingCartService : IShoppingCartService
         DateTime? rentalStartDate = null, DateTime? rentalEndDate = null,
         int quantity = 1, bool addRequiredProducts = true, int? wishlistId = null)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("basket.add_to_cart");
+
+        activity?.SetTag("customer.id", customer.Id);
+        activity?.SetTag("product.id", product.Id);
+        activity?.SetTag("basket.type", shoppingCartType.ToString());
+        activity?.SetTag("store.id", storeId);
+        activity?.SetTag("basket.quantity", quantity);
+
         ArgumentNullException.ThrowIfNull(customer);
 
         ArgumentNullException.ThrowIfNull(product);
 
         var warnings = new List<string>();
+        IList<ShoppingCartItem> cart = null;
+        ShoppingCartItem shoppingCartItem = null;
+        
+        try 
+        {
+
         if (shoppingCartType == ShoppingCartType.ShoppingCart && !await _permissionService.AuthorizeAsync(StandardPermission.PublicStore.ENABLE_SHOPPING_CART, customer))
         {
             warnings.Add("Shopping cart is disabled");
@@ -1581,9 +1600,9 @@ public partial class ShoppingCartService : IShoppingCartService
         //reset checkout info
         await _customerService.ResetCheckoutDataAsync(customer, storeId);
 
-        var cart = await GetShoppingCartAsync(customer, shoppingCartType, storeId);
+        cart = await GetShoppingCartAsync(customer, shoppingCartType, storeId);
 
-        var shoppingCartItem = await FindShoppingCartItemInTheCartAsync(cart,
+        shoppingCartItem = await FindShoppingCartItemInTheCartAsync(cart,
             shoppingCartType, product, attributesXml, customerEnteredPrice,
             rentalStartDate, rentalEndDate);
 
@@ -1675,6 +1694,27 @@ public partial class ShoppingCartService : IShoppingCartService
             {
                 customer.HasShoppingCartItems = hasShoppingCartItems;
                 await _customerService.UpdateCustomerAsync(customer);
+            }
+        }
+
+
+        }
+        finally 
+        {
+            if (warnings.Any())
+            {
+                var errorMsg = string.Join("; ", warnings);
+
+                activity?.SetStatus(ActivityStatusCode.Error, errorMsg);
+                
+                activity?.SetTag("basket.has_warnings", true);
+                activity?.SetTag("basket.warnings", errorMsg);
+
+                activity?.AddEvent(new ActivityEvent("AddToCart Failed", tags: new ActivityTagsCollection 
+                { 
+                    { "warnings", errorMsg },
+                    { "product.name", product.Name }
+                }));
             }
         }
 
