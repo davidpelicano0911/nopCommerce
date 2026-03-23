@@ -388,8 +388,8 @@ public partial class ShoppingCartService : IShoppingCartService
             }
         }
 
-        //quantity validation
         var hasQtyWarnings = false;
+
         if (quantity < product.OrderMinimumQuantity)
         {
             warnings.Add(string.Format(await _localizationService.GetResourceAsync("ShoppingCart.MinimumQuantity"), product.OrderMinimumQuantity));
@@ -398,7 +398,15 @@ public partial class ShoppingCartService : IShoppingCartService
 
         if (quantity > product.OrderMaximumQuantity)
         {
-            warnings.Add(string.Format(await _localizationService.GetResourceAsync("ShoppingCart.MaximumQuantity"), product.OrderMaximumQuantity));
+            var tags = new TagList { 
+                { "product_id", product.Id }, 
+                { "reason", "maximum_quantity" } 
+            };
+            NopTelemetry.InventoryRejection.Add(1, tags);
+
+
+            var maxMsg = await _localizationService.GetResourceAsync("ShoppingCart.MaximumQuantity");
+            warnings.Add(string.Format(maxMsg, product.OrderMaximumQuantity));
             hasQtyWarnings = true;
         }
 
@@ -557,6 +565,12 @@ public partial class ShoppingCartService : IShoppingCartService
 
         if (maximumQuantityCanBeAdded < quantity)
         {
+            // Custom Metric: Inventory Stock Exceeded
+            var reason = maximumQuantityCanBeAdded <= 0 ? "out_of_stock" : "quantity_exceeded";
+            NopTelemetry.InventoryRejection.Add(1,
+                new KeyValuePair<string, object>("product_id", product.Id),
+                new KeyValuePair<string, object>("reason", reason));
+
             if (maximumQuantityCanBeAdded <= 0)
             {
                 var productAvailabilityRange = await _dateRangeService.GetProductAvailabilityRangeByIdAsync(product.ProductAvailabilityRangeId);
@@ -1555,8 +1569,6 @@ public partial class ShoppingCartService : IShoppingCartService
         int quantity = 1, bool addRequiredProducts = true, int? wishlistId = null)
     {
         using var activity = NopTelemetry.ActivitySource.StartActivity("basket.add_to_cart");
-
-        activity?.SetTag("customer.id", customer.Id);
         activity?.SetTag("product.id", product.Id);
         activity?.SetTag("basket.type", shoppingCartType.ToString());
         activity?.SetTag("store.id", storeId);
@@ -1715,6 +1727,13 @@ public partial class ShoppingCartService : IShoppingCartService
                     { "warnings", errorMsg },
                     { "product.name", product.Name }
                 }));
+            }
+            else
+            {
+                // Custom Metric: Cart Item Added
+                NopTelemetry.CartItemAdded.Add(quantity,
+                    new KeyValuePair<string, object>("shopping_cart_type", shoppingCartType.ToString()),
+                    new KeyValuePair<string, object>("product_id", product.Id));
             }
         }
 

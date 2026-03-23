@@ -2,10 +2,17 @@ services:
     nopcommerce_web:
         build: .
         container_name: nopcommerce
+        environment:
+            - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
         ports:
             - "80:80"
         depends_on:
             - nopcommerce_database
+        volumes:
+            - nopcommerce_appdata:/app/App_Data
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+
     nopcommerce_database:
         image: "mcr.microsoft.com/mssql/server:2019-latest"
         container_name: nopcommerce_mssql_server
@@ -13,15 +20,45 @@ services:
             SA_PASSWORD: "nopCommerce_db_password"
             ACCEPT_EULA: "Y"
             MSSQL_PID: "Express"
+        ports:
+            - "1433:1433"
+        volumes:
+            - nopcommerce_data:/var/opt/mssql
+
     jaeger:
         image: jaegertracing/all-in-one
         container_name: jaeger_container
         environment:
-        - COLLECTOR_OTLP_ENABLED=true
+            - COLLECTOR_OTLP_ENABLED=true
         ports:
-        - "16686:16686" # Interface do Browser
-        - "4317:4317"   # Porta de dados (gRPC)
-        - "4318:4318"   # Porta de dados (HTTP)
+            - "16686:16686" # Interface do Browser
+            - "4317:4317"   # Dados gRPC
+            - "4318:4318"   # Dados HTTP
+
+    prometheus:
+        image: prom/prometheus:latest
+        container_name: prometheus_container
+        volumes:
+            - ./prometheus.yml:/etc/prometheus/prometheus.yml
+        ports:
+            - "9090:9090"
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+
+    grafana:
+        image: grafana/grafana:latest
+        container_name: grafana_container
+        ports:
+            - "3000:3000"
+        depends_on:
+            - prometheus
+            - jaeger
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        volumes:
+            - ./grafana/provisioning:/etc/grafana/provisioning
+            - ./grafana/dashboards:/var/lib/grafana/dashboards
 
 volumes:
-  nopcommerce_data:            
+  nopcommerce_data:
+  nopcommerce_appdata:

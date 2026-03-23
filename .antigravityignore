@@ -1,0 +1,10 @@
+node_modules/
+venv/
+.venv/
+env/
+dist/
+build/
+.next/
+.cache/
+*.log
+*.sqlite

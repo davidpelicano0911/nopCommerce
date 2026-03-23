@@ -1598,7 +1598,6 @@ public partial class OrderProcessingService : IOrderProcessingService
 
                 using (var paymentActivity = NopTelemetry.ActivitySource.StartActivity("checkout.process_payment"))
                 {
-                    paymentActivity?.SetTag("payment.method", processPaymentRequest.PaymentMethodSystemName);
 
                     processPaymentResult =
                         await GetProcessPaymentResultAsync(processPaymentRequest, placeOrderContainer)

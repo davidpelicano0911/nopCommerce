@@ -20,10 +20,16 @@ public class ObservabilityStartup : INopStartup
                 builder
                     .AddSource(NopTelemetry.ServiceName)    // picks up our ActivitySource
                     .AddAspNetCoreInstrumentation()         // auto HTTP spans
-                    .AddSource("Npgsql")  //  (postgresql) to capture db spans
+                    .AddSqlClientInstrumentation(options => 
+                    {
+                        options.SetDbStatementForText = true; 
+                        options.RecordException = true;       
+                    })
+                    //.AddProcessor<PiiSanitizationProcessor>()
                     .AddConsoleExporter()                  
                     .AddOtlpExporter(opt => {
-                        opt.Endpoint = new Uri("http://localhost:4317");
+                        var endpoint = configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://localhost:4317";
+                        opt.Endpoint = new Uri(endpoint);
                     });
             })
 
@@ -35,7 +41,8 @@ public class ObservabilityStartup : INopStartup
                     .AddConsoleExporter()                   
                     .AddPrometheusExporter()
                     .AddOtlpExporter(opt => {
-                        opt.Endpoint = new Uri("http://localhost:4317");
+                        var endpoint = configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://localhost:4317";
+                        opt.Endpoint = new Uri(endpoint);
                     });
             });
     }

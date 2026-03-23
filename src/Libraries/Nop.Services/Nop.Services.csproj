@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <Copyright>Copyright © Nop Solutions, Ltd</Copyright>
@@ -9,6 +9,7 @@
     <PackageLicenseUrl>https://www.nopcommerce.com/license</PackageLicenseUrl>
     <PackageProjectUrl>https://www.nopcommerce.com/</PackageProjectUrl>
     <RepositoryUrl>https://github.com/nopSolutions/nopCommerce</RepositoryUrl>
+    <InternalsVisibleTo>Nop.Tests</InternalsVisibleTo>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,6 +21,8 @@
     <PackageReference Include="MailKit" Version="4.13.0" />
     <PackageReference Include="Markdig" Version="0.42.0" />
     <PackageReference Include="MaxMind.GeoIP2" Version="5.3.0" />
+    <PackageReference Include="OpenTelemetry" Version="1.9.*" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.9.0-beta.1" />
     <PackageReference Include="PdfRpt.Core" Version="1.5.15" />
     <PackageReference Include="System.ServiceModel.Http" Version="8.1.2" />
     <PackageReference Include="SkiaSharp" Version="3.116.1" />
