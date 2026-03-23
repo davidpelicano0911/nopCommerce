@@ -16,6 +16,7 @@ using Nop.Services.Customers;
 using Nop.Services.Directory;
 using Nop.Services.Helpers;
 using Nop.Services.Localization;
+using Nop.Services.Observability;
 using Nop.Services.Orders;
 using Nop.Services.Payments;
 using Nop.Services.Shipping;
@@ -2018,6 +2019,8 @@ public partial class CheckoutController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> OpcConfirmOrder(bool captchaValid)
     {
+        var placeOrderCalled = false;
+
         try
         {
             var customer = await _workContext.GetCurrentCustomerAsync();
@@ -2069,6 +2072,7 @@ public partial class CheckoutController : BasePublicController
                 processPaymentRequest.PaymentMethodSystemName = await _genericAttributeService.GetAttributeAsync<string>(customer,
                     NopCustomerDefaults.SelectedPaymentMethodAttribute, store.Id);
                 await _orderProcessingService.SetProcessPaymentRequestAsync(processPaymentRequest);
+                placeOrderCalled = true;
                 var placeOrderResult = await _orderProcessingService.PlaceOrderAsync(processPaymentRequest);
                 if (placeOrderResult.Success)
                 {
@@ -2107,7 +2111,13 @@ public partial class CheckoutController : BasePublicController
                     confirmOrderModel.Warnings.Add(error);
             }
             else
+            {
                 confirmOrderModel.Warnings.Add(await _localizationService.GetResourceAsync("Common.WrongCaptchaMessage"));
+
+                NopTelemetry.CheckoutCompleted.Add(1,
+                    new KeyValuePair<string, object>("success", false),
+                    new KeyValuePair<string, object>("failure.stage", "captcha"));
+            }
 
             return Json(new
             {
@@ -2121,6 +2131,13 @@ public partial class CheckoutController : BasePublicController
         }
         catch (Exception exc)
         {
+            if (!placeOrderCalled)
+            {
+                NopTelemetry.CheckoutCompleted.Add(1,
+                    new KeyValuePair<string, object>("success", false),
+                    new KeyValuePair<string, object>("failure.stage", "pre_place_order"));
+            }
+
             await _logger.WarningAsync(exc.Message, exc, await _workContext.GetCurrentCustomerAsync());
             return Json(new { error = 1, message = exc.Message });
         }

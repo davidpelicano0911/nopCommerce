@@ -61,13 +61,16 @@ function pickProductScenario() {
   const roll = Math.random();
   
   if (roll < 0.60) { 
-    return { id: 6, qty: 1, type: 'success' }; 
+    const id = SUCCESS_PRODUCTS[Math.floor(Math.random() * SUCCESS_PRODUCTS.length)];
+    return { id: id, qty: 1, type: 'success' }; 
   } 
   else if (roll < 0.80) { 
-    return { id: 18, qty: 1, type: 'oos' }; 
+    const id = OOS_PRODUCTS[Math.floor(Math.random() * OOS_PRODUCTS.length)];
+    return { id: id, qty: 1, type: 'oos' }; 
   } 
   else { 
-    return { id: 16, qty: 5, type: 'max_qty' }; 
+    const id = MAX_QTY_PRODUCTS[Math.floor(Math.random() * MAX_QTY_PRODUCTS.length)];
+    return { id: id, qty: 5, type: 'max_qty' }; 
   }
 }
 
@@ -126,9 +129,9 @@ export default function () {
       let opcToken = extractToken(opcPage.body || '') || token;
 
       const payload = (extra) => Object.assign({ __RequestVerificationToken: opcToken }, extra || {});
-      const sabotageCheckout = Math.random() < 0.30;
-      const fakeZip = sabotageCheckout ? '' : identity.zip; 
-      const fakeEmail = sabotageCheckout ? 'not_an_email' : identity.email;
+      const forceCheckoutFailure = Math.random() < 0.25;
+      const fakeZip = identity.zip;
+      const fakeEmail = identity.email;
 
       let rs;
       rs = http.post(`${BASE_URL}/checkout/OpcSaveBilling`, payload({
@@ -151,7 +154,9 @@ export default function () {
         paymentmethod: 'Payments.CheckMoneyOrder',
       }), { headers: AJAX_HEADERS });
 
-      rs = http.post(`${BASE_URL}/checkout/OpcSavePaymentInfo`, payload(), { headers: AJAX_HEADERS });
+      if (!forceCheckoutFailure) {
+        rs = http.post(`${BASE_URL}/checkout/OpcSavePaymentInfo`, payload(), { headers: AJAX_HEADERS });
+      }
 
       const resConfirm = http.post(`${BASE_URL}/checkout/OpcConfirmOrder`, payload(), { 
         headers: AJAX_HEADERS,
