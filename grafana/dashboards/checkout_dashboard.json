@@ -124,7 +124,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(rate(nopcommerce_cart_item_added_total[1m])) * 60",
+          "expr": "sum(rate(nopcommerce_cart_item_added_total[5m])) * 60",
           "legendFormat": "Items Added / min",
           "range": true,
           "refId": "A"
@@ -270,7 +270,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum(rate(nopcommerce_checkout_duration_ms_milliseconds_bucket[1m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(nopcommerce_checkout_duration_ms_milliseconds_bucket[5m])) by (le))",
           "legendFormat": "P95",
           "range": true,
           "refId": "A"
@@ -838,13 +838,13 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (reason) (nopcommerce_inventory_rejection_total)",
+          "expr": "sum by (reason) (nopcommerce_cart_add_rejection_total)",
           "legendFormat": "{{reason}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Inventory Rejections by Reason",
+      "title": "Cart Add Rejections by Reason",
       "type": "barchart"
     },
     {
@@ -910,13 +910,13 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(nopcommerce_inventory_rejection_total)",
+          "expr": "sum(nopcommerce_cart_add_rejection_total)",
           "legendFormat": "Total Rejections",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Total Inventory Rejections",
+      "title": "Total Cart Add Rejections",
       "type": "stat"
     },
     {
@@ -998,6 +998,6 @@
   "timezone": "browser",
   "title": "nopCommerce - Order Flow Observability",
   "uid": "checkout-pipeline",
-  "version": 1,
+  "version": 3,
   "weekStart": ""
 }

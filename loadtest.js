@@ -14,6 +14,7 @@ const addToCartSuccessRate = new Rate('add_to_cart_success_rate');
 const checkoutDuration     = new Trend('checkout_flow_duration_ms');
 const outOfStockErrors     = new Counter('out_of_stock_errors');
 const maxQtyErrors         = new Counter('max_quantity_errors');
+const prePlaceOrderErrors  = new Counter('nop_pre_place_order_errors');
 
 export const options = {
   stages: IS_CI
@@ -158,7 +159,7 @@ export default function () {
         rs = http.post(`${BASE_URL}/checkout/OpcSavePaymentInfo`, payload(), { headers: AJAX_HEADERS });
       }
 
-      const resConfirm = http.post(`${BASE_URL}/checkout/OpcConfirmOrder`, payload(), { 
+      const resConfirm = http.post(`${BASE_URL}/checkout/OpcConfirmOrder`, payload(), {
         headers: AJAX_HEADERS,
         tags: { name: 'ConfirmOrder' }
       });
@@ -166,8 +167,16 @@ export default function () {
       let orderOk = false;
       try {
         const body = JSON.parse(resConfirm.body);
-        orderOk = (body.success === true || body.success === 1 || (body.redirect && !body.error));
-      } catch (e) {}
+        if (body.error === 1) {
+          prePlaceOrderErrors.add(1);
+          orderOk = false;
+        } else {
+          orderOk = (body.success === true || body.success === 1 || (body.redirect && !body.error));
+        }
+      } catch (e) {
+        prePlaceOrderErrors.add(1);
+        orderOk = false;
+      }
 
       if (orderOk) {
         checkoutSuccessRate.add(true);

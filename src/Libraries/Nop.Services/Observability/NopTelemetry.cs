@@ -39,10 +39,10 @@ public static class NopTelemetry
             unit: "{item}",
             description: "Number of items added to the shopping cart");
 
-    // Custom Metric 4: Inventory Rejections (Stock, Max Qty)
-    public static readonly Counter<long> InventoryRejection =
+    // Custom Metric 4: Cart Add Rejections (Stock, Max Qty)
+    public static readonly Counter<long> CartAddRejection =
         Meter.CreateCounter<long>(
-            name: "nopcommerce.inventory.rejection", 
+            name: "nopcommerce.cart.add_rejection",
             unit: "{rejection}",
-            description: "Number of inventory-related blocks (out of stock or max quantity limits)");
+            description: "Number of blocks when adding items to cart (out of stock or max quantity)");
 }

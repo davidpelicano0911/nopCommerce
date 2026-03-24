@@ -25,8 +25,7 @@ public class ObservabilityStartup : INopStartup
                         options.SetDbStatementForText = true; 
                         options.RecordException = true;       
                     })
-                    //.AddProcessor<PiiSanitizationProcessor>()
-                    .AddConsoleExporter()                  
+                    .AddProcessor<PiiSanitizationProcessor>()
                     .AddOtlpExporter(opt => {
                         var endpoint = configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://localhost:4317";
                         opt.Endpoint = new Uri(endpoint);
@@ -39,7 +38,6 @@ public class ObservabilityStartup : INopStartup
                     .AddMeter(NopTelemetry.ServiceName)     // picks up our Meter
                     .AddAspNetCoreInstrumentation()
                     .AddConsoleExporter()                   
-                    .AddPrometheusExporter()
                     .AddOtlpExporter(opt => {
                         var endpoint = configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://localhost:4317";
                         opt.Endpoint = new Uri(endpoint);
@@ -49,6 +47,6 @@ public class ObservabilityStartup : INopStartup
 
     public void Configure(IApplicationBuilder application)
     {
-        application.UseOpenTelemetryPrometheusScrapingEndpoint();
+        // No longer using Prometheus scraping endpoint; metrics are exported via OTLP to the Collector.
     }
 }

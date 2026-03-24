@@ -2021,9 +2021,16 @@ public partial class CheckoutController : BasePublicController
     {
         var placeOrderCalled = false;
 
+        using var activity = Nop.Services.Observability.NopTelemetry.ActivitySource.StartActivity("checkout.confirmOrder");
+
         try
         {
             var customer = await _workContext.GetCurrentCustomerAsync();
+
+            if (customer != null)
+            {
+                activity?.SetTag("customer.id", customer.Id);
+            }
 
             var isCaptchaSettingEnabled = await _customerService.IsGuestAsync(customer) &&
                                           _captchaSettings.Enabled && _captchaSettings.ShowOnCheckoutPageForGuests;
@@ -2113,10 +2120,6 @@ public partial class CheckoutController : BasePublicController
             else
             {
                 confirmOrderModel.Warnings.Add(await _localizationService.GetResourceAsync("Common.WrongCaptchaMessage"));
-
-                NopTelemetry.CheckoutCompleted.Add(1,
-                    new KeyValuePair<string, object>("success", false),
-                    new KeyValuePair<string, object>("failure.stage", "captcha"));
             }
 
             return Json(new

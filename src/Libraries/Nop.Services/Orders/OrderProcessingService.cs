@@ -1576,6 +1576,8 @@ public partial class OrderProcessingService : IOrderProcessingService
         activity?.SetTag("order.guid", processPaymentRequest.OrderGuid.ToString());
         activity?.SetTag("order.store_id", processPaymentRequest.StoreId);
 
+        activity?.SetTag("customer.email", "david@ua.pt");
+
         ArgumentNullException.ThrowIfNull(processPaymentRequest);
 
         if (processPaymentRequest.OrderGuid == Guid.Empty)

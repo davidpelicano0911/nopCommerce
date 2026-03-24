@@ -402,7 +402,7 @@ public partial class ShoppingCartService : IShoppingCartService
                 { "product_id", product.Id }, 
                 { "reason", "maximum_quantity" } 
             };
-            NopTelemetry.InventoryRejection.Add(1, tags);
+            NopTelemetry.CartAddRejection.Add(1, tags);
 
 
             var maxMsg = await _localizationService.GetResourceAsync("ShoppingCart.MaximumQuantity");
@@ -567,7 +567,7 @@ public partial class ShoppingCartService : IShoppingCartService
         {
             // Custom Metric: Inventory Stock Exceeded
             var reason = maximumQuantityCanBeAdded <= 0 ? "out_of_stock" : "quantity_exceeded";
-            NopTelemetry.InventoryRejection.Add(1,
+            NopTelemetry.CartAddRejection.Add(1,
                 new KeyValuePair<string, object>("product_id", product.Id),
                 new KeyValuePair<string, object>("reason", reason));
 

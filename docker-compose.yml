@@ -3,15 +3,17 @@ services:
         build: .
         container_name: nopcommerce
         environment:
-            - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+            - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
         ports:
             - "80:80"
         depends_on:
             - nopcommerce_database
+            - otel-collector
         volumes:
             - nopcommerce_appdata:/app/App_Data
         extra_hosts:
             - "host.docker.internal:host-gateway"
+        
 
     nopcommerce_database:
         image: "mcr.microsoft.com/mssql/server:2019-latest"
@@ -32,12 +34,26 @@ services:
             - COLLECTOR_OTLP_ENABLED=true
         ports:
             - "16686:16686" # Interface do Browser
-            - "4317:4317"   # Dados gRPC
-            - "4318:4318"   # Dados HTTP
+
+    otel-collector:
+        image: otel/opentelemetry-collector:latest
+        container_name: otel_collector
+        command: ["--config=/etc/otel-collector-config.yaml"]
+        volumes:
+            - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+        ports:
+            - "4317:4317"   # OTLP gRPC receiver
+            - "4318:4318"   # OTLP HTTP receiver
+            - "8888:8888"   # Metrics about the collector itself
+        depends_on:
+            - jaeger
 
     prometheus:
         image: prom/prometheus:latest
         container_name: prometheus_container
+        command:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --web.enable-otlp-receiver
         volumes:
             - ./prometheus.yml:/etc/prometheus/prometheus.yml
         ports:
