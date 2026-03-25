@@ -1,7 +1,5 @@
 # 5. Critique
 
-This section evaluates the instrumentation process from an architectural perspective, detailing the systemic enablers and bottlenecks encountered in the nopCommerce codebase.
-
 ## 1. What Helped and Hindered Instrumentation
 
 **What Helped:**
