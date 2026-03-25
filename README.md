@@ -1,6 +1,6 @@
 ## Observability: Instrumenting the "Customer Places an Order" Flow
 
-This section documents the end-to-end observability instrumentation added to nopCommerce for the **"Customer places an order"** flow,
+This section documents the end-to-end observability instrumentation added to nopCommerce for the **"Customer places an order"** flow.
 
 ---
 
@@ -48,7 +48,7 @@ The infrastructure has been evolved to a **Unified Telemetry Pipeline** using a 
 | `nopcommerce.checkout.duration_ms` | Histogram | `OrderProcessingService.PlaceOrderAsync` | Checkout pipeline latency (P50, P95, P99) |
 | `nopcommerce.checkout.completed` | Counter | `PlaceOrderAsync` + `OpcConfirmOrder` | Success/failure count with `failure.stage` tag |
 | `nopcommerce.cart.item_added` | Counter | `ShoppingCartService.AddToCartAsync` | Items added to cart, tagged by product |
-| `nopcommerce.inventory.rejection` | Counter | `ShoppingCartService` (two sites) | Stock blocks with `reason`: `out_of_stock`, `quantity_exceeded`, `maximum_quantity` |
+| `nopcommerce.cart.add_rejection` | Counter | `ShoppingCartService` (two sites) | Stock blocks with `reason`: `out_of_stock`, `quantity_exceeded`, `maximum_quantity` |
 
 ### Advanced Instrumentation
 
@@ -145,9 +145,9 @@ The Grafana dashboard tells the operational story of the checkout funnel:
      - **Note on Business Failures**: While most "Out of Stock" events happen at the basket stage, this panel also captures Late Inventory Rejections. This occurs if a product becomes unavailable after being added to the cart but before the final confirmation. In such cases, the OrderProcessingService rejects the placement, resulting in a red "Failure" bar. This proves the instrumentation monitors both technical exceptions and real-time business blockers during the final commit.
    - **Checkout Error Rate (%)**: A time-series percentage panel calculated as `failed / total × 100`, with threshold colors (green < 5%, orange < 15%, red ≥ 15%)
 
-3. **Inventory Section** — *"Why are checkouts failing?"*
-   - **Inventory Rejection by Reason**: Stacked bar chart breaking down `out_of_stock` vs `maximum_quantity` vs `quantity_exceeded` — this is the operational insight that tells a stock manager *exactly* what to act on
-   - **Inventory Rejection (per minute)**: Time-series rate showing rejection trends
+3. Cart Rejection Section — *"Why are customers unable to add to cart?"*
+   - **Cart Add Rejections by Reason**: Stacked bar chart breaking down `out_of_stock` vs `maximum_quantity` vs `quantity_exceeded` — this is the operational insight that tells a stock manager *exactly* what to act on
+   - **Cart Add Rejection Rate (per minute)**: Time-series rate showing rejection trends
 
 4. **Traces Section** — *"What does a single checkout look like?"*
    - **Trace View**: Jaeger panel showing full distributed traces.
@@ -247,14 +247,14 @@ sum by (success) (nopcommerce_checkout_completed_total)
 
 #### Inventory
 
-**Inventory Rejections by Reason**
+**Cart Add Rejections by Reason**
 ```promql
-sum by (reason) (nopcommerce_inventory_rejection_total)
+sum by (reason) (nopcommerce_cart_add_rejection_total)
 ```
 
-**Total Inventory Rejections**
+**Total Cart Add Rejections**
 ```promql
-sum(nopcommerce_inventory_rejection_total)
+sum(nopcommerce_cart_add_rejection_total)
 ```
 
 #### Tracing (Jaeger)
@@ -323,24 +323,23 @@ The Grafana "Checkout Pipeline Dashboard" during a k6 load test, showing the sal
 * **Total Cart Items Added:** A cumulative counter used as a business KPI to measure product interest.
 
 
-![Basket Analysis](./docs/grafana1.png)
-
----
-
 #### **2. Section: Checkout (System Health)**
 
 * **Checkout Latency (P95):** Indicates that 95% of checkout requests complete in under **190ms**.
 * **Checkout Duration Over Time:** A line chart comparing median latency (P50) with high-percentile spikes (P99), useful for detecting server slowdowns.
 * **Checkout: Success vs Failure:** Green bars represent successful purchases; red bars show where the process failed (either due to technical errors or payment rejection).
 
-![Checkout Health](./docs/grafana2.png)
+![Basket Analysis](./docs/grafana1.png)
+
+
+
 
 
 ---
 
-#### **3. Section: Inventory (Why do sales fail?)**
+#### **3. Section: Cart Rejections (Why do sales fail?)**
 
-* **Inventory Rejections by Reason:** This is the most important panel in the demo. It categorizes failures into:
+* **Cart Add Rejections by Reason:** This is the most important panel in the demo. It categorizes failures into:
 
   * **`out_of_stock`**: The warehouse has no available items.
   * **`maximum_quantity`**: The customer attempted to purchase more than the allowed limit per user.
